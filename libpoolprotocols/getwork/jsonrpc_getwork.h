@@ -11,15 +11,15 @@ class JsonrpcGetwork
 {
     public:
         JsonrpcGetwork(jsonrpc::IClientConnector* conn) {
-			this->client = new jsonrpc::Client(*conn);
+			this->client = new jsonrpc::Client(*conn, jsonrpc::JSONRPC_CLIENT_V1);
 		}
 
         Json::Value eth_getWork() throw (jsonrpc::JsonRpcException)
         {
             Json::Value p;
             p = Json::nullValue;
-            Json::Value result = this->client->CallMethod("eth_getWork",p);
-            if (result.isArray())
+            Json::Value result = this->client->CallMethod("getblocktemplate", p);
+            if (result.isObject())
                 return result;
             else
                 throw jsonrpc::JsonRpcException(jsonrpc::Errors::ERROR_CLIENT_INVALID_RESPONSE, result.toStyledString());
@@ -30,7 +30,7 @@ class JsonrpcGetwork
             p.append(param1);
             p.append(param2);
             p.append(param3);
-            Json::Value result = this->client->CallMethod("eth_submitWork",p);
+            Json::Value result = this->client->CallMethod("pprpcsb",p);
             if (result.isBool())
                 return result.asBool();
             else

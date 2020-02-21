@@ -432,6 +432,14 @@ void EthStratumClient::processReponse(Json::Value& responseObject)
 		}
 		if (m_connection.Version() != EthStratumClient::ETHPROXY)
 		{
+            m_nextWorkDifficulty = 1;
+            params = responseObject.get("result", Json::Value::null);
+            if (params.isArray())
+            {
+                std::string enonce = params.get((Json::Value::ArrayIndex)1, "").asString();
+                processExtranonce(enonce);
+            }
+
 			cnote << "Subscribed to stratum server";
 			os << "{\"id\": 3, \"method\": \"mining.authorize\", \"params\": [\"" << m_connection.User() << "\",\"" << m_connection.Pass() << "\"]}\n";
 		}
@@ -529,7 +537,9 @@ void EthStratumClient::processReponse(Json::Value& responseObject)
 					string sHeaderHash = params.get((Json::Value::ArrayIndex)index++, "").asString();
 					string sSeedHash = params.get((Json::Value::ArrayIndex)index++, "").asString();
 					string sShareTarget = params.get((Json::Value::ArrayIndex)index++, "").asString();
-					uint64_t iBlockHeight = params.get((Json::Value::ArrayIndex)index++, "").asInt64();
+					// The 4th entry is the boolean for canceling the job
+					// The 5th entry is for the block height
+					uint64_t iBlockHeight = params.get((Json::Value::ArrayIndex)5, "").asInt64();
 
 					// coinmine.pl fix
 					int l = sShareTarget.length();
@@ -550,6 +560,7 @@ void EthStratumClient::processReponse(Json::Value& responseObject)
 							m_current.boundary = h256(sShareTarget);
 							m_current.height = iBlockHeight;
 							m_current.job = h256(job);
+                            m_current.startNonce = ethash_swap_u64(*((uint64_t*)m_extraNonce.data()));
 
 							if (m_onWorkReceived) {
 								m_onWorkReceived(m_current);
@@ -559,6 +570,14 @@ void EthStratumClient::processReponse(Json::Value& responseObject)
 				}
 			}
 		}
+        else if (method == "mining.set_target") {
+            string sShareTarget = params.get((Json::Value::ArrayIndex)0, "").asString();
+            m_current.boundary = h256(sShareTarget);
+            cnote << "New target set to: "  << sShareTarget;
+            if (m_onWorkReceived) {
+                m_onWorkReceived(m_current);
+            }
+        }
 		else if (method == "mining.set_difficulty" && m_connection.Version() == EthStratumClient::ETHEREUMSTRATUM)
 		{
 			params = responseObject.get("params", Json::Value::null);
@@ -648,9 +667,8 @@ void EthStratumClient::submitSolution(Solution solution) {
 			break;
 		case EthStratumClient::ETHPROXY:
 			json = "{\"id\": 4, \"worker\":\"" +
-				m_worker + "\", \"method\": \"eth_submitWork\", \"params\": [\"0x" +
-				nonceHex + "\",\"0x" + solution.work.header.hex() + "\",\"0x" +
-				solution.mixHash.hex() + "\"]}\n";
+				m_worker + "\", \"method\": \"pprpcsb\", \"params\": [\"" + solution.work.header.hex() + "\",\"" +
+				solution.mixHash.hex() + "\",\"0x" + nonceHex + "\"]}\n";
 			break;
 		case EthStratumClient::ETHEREUMSTRATUM:
 			json = "{\"id\": 4, \"method\": \"mining.submit\", \"params\": [\"" +
